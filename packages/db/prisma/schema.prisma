@@ -1,0 +1,48 @@
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+
+   
+}
+model website{
+  id        String   @id @default(uuid())
+  name      String
+  url       String
+  userId    String
+  status web_status[]
+  disabled  Boolean  @default(false)
+}
+model validator{
+  id        String   @id @default(uuid())
+  name      String
+  location  String
+  ip        String  
+  publicKey String
+  status    web_status[]
+}
+
+model web_status{
+  id        String   @id @default(uuid())
+  websiteId String
+  website   website @relation(fields: [websiteId], references: [id])
+  validatorId String
+  status      Status
+  createdAt DateTime @default(now())
+  latency    Float
+  validator  validator @relation(fields: [validatorId], references: [id])
+
+}
+enum Status{
+  UP
+  DOWN
+}
