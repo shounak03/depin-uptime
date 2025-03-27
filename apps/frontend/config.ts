@@ -1,0 +1,1 @@
+export const API_BACKRDEND_URL = "http://localhost:8080"

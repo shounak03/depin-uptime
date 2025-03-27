@@ -36,7 +36,7 @@ model web_status{
   websiteId String
   website   website @relation(fields: [websiteId], references: [id])
   validatorId String
-  status      Status
+  state      Status
   createdAt DateTime @default(now())
   latency    Float
   validator  validator @relation(fields: [validatorId], references: [id])
