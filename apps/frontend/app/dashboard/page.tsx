@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,37 +11,35 @@ import {
 } from "@/components/ui/accordion";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Plus, ArrowUpRight, ArrowDownRight, Clock, Activity } from 'lucide-react';
 import useWebsites from '@/hooks/useWebsites';
 import { API_BACKRDEND_URL } from '@/config';
 import axios from 'axios';
 import { useAuth } from '@clerk/nextjs';
 
-interface StatusCheck {
-  timestamp: string;
-  status: 'up' | 'down';
-}
+type UptimeStatus = "good" | "bad" | "unknown";
 
 interface Service {
   id: string;
   name: string;
   url: string;
-  status: string;
-  uptime: string;
-  responseTime: string;
+  status: UptimeStatus;
+  uptimePercentage: number;
   lastChecked: string;
-  statusHistory: StatusCheck[];
+  uptimeTicks: UptimeStatus[];
 }
 
-function StatusCandlestick({ status, timestamp }: { status: string; timestamp: string }) {
+function StatusCandlestick({ status, timestamp }: { status: UptimeStatus; timestamp: string }) {
   return (
     <div className="relative group">
       <div 
         className={`w-2 gap-2 h-10 rounded ${
-          status === 'up' 
+          status === 'good' 
             ? 'bg-green-500 dark:bg-green-600' 
-            : 'bg-red-500 dark:bg-red-600'
+            : status === 'bad'
+            ? 'bg-red-500 dark:bg-red-600'
+            : 'bg-gray-500 dark:bg-gray-600'
         }`}
       />
       <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-popover text-popover-foreground text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
@@ -52,11 +49,58 @@ function StatusCandlestick({ status, timestamp }: { status: string; timestamp: s
   );
 }
 
-
-
 export default function DashboardPage() {
   const [services, setServices] = useState<Service[]>([]);
-  const {Websites,refresh} = useWebsites();
+  const { Websites, refresh } = useWebsites();
+
+  const processedServices = useMemo(() => {
+    if (!Websites) return [];
+    
+    return Websites.map(website => {
+      // Check if website is new (no status yet)
+      const isNew = !website.status;
+      
+      // Get the current status
+      const currentStatus: UptimeStatus = isNew ? 'unknown' : (website.status.state === 'UP' ? 'good' : 'bad');
+      
+      // Create a simulated history of status checks
+      const uptimeTicks: UptimeStatus[] = Array.from({ length: 10 }, (_, i) => {
+        const timeAgo = new Date(Date.now() - i * 3 * 60 * 1000);
+        return isNew ? 'unknown' : currentStatus;
+      });
+
+      // Calculate uptime percentage based on current status
+      const  uptimePercentage = isNew ? 0 : (currentStatus === 'good' ? 100 : 0);
+
+      // Format the last checked time
+      const lastChecked = website.status?.createdAt
+        ? new Date(website.status.createdAt).toLocaleTimeString()
+        : 'Never';
+
+      return {
+        id: website.id,
+        name: website.name,
+        url: website.url,
+        status: currentStatus,
+        uptimePercentage,
+        lastChecked,
+        uptimeTicks,
+      };
+    });
+  }, [Websites]);
+
+  useEffect(() => {
+    setServices(processedServices);
+  }, [processedServices]);
+
+  // Calculate statistics
+  const totalIncidents = services.filter(service => service.status === 'bad').length;
+  const averageUptime = services.length 
+    ? (services.reduce((acc, service) => acc + service.uptimePercentage, 0) / services.length).toFixed(1) + '%'
+    : '0%';
+  const averageResponseTime = services.length
+    ? Math.round(services.reduce((acc, service) => acc + (service.status === 'good' ? 0 : 1), 0) / services.length) + 'ms'
+    : '0ms';
 
   function AddServiceDialog() {
     const [open, setOpen] = useState(false);
@@ -127,35 +171,6 @@ export default function DashboardPage() {
     );
   }
 
-  useEffect(() => {
-    if (!Websites) return;
-    
-    const transformedServices = Websites.map(website => ({
-      id: website.id,
-      name: website.name,
-      url: website.url,
-      status: website.status?.state || 'unknown',
-      uptime: '99.9%',
-      responseTime: `${website.status?.latency || 0}ms`,
-      lastChecked: new Date(website.status?.createdAt || Date.now()).toLocaleString(),
-      statusHistory: Array.from({ length: 10 }, (_, i) => ({
-        timestamp: new Date(Date.now() - i * 180000).toLocaleTimeString(),
-        status: website.status?.state === 'up' ? 'up' : 'down'
-      })).reverse()
-    }));
-
-    setServices(transformedServices);
-  }, [Websites]);
-
-  // Calculate statistics
-  const totalIncidents = services.filter(service => service.status === 'down').length;
-  const averageUptime = services.length 
-    ? (services.reduce((acc, service) => acc + parseFloat(service.uptime), 0) / services.length).toFixed(1) + '%'
-    : '0%';
-  const averageResponseTime = services.length
-    ? Math.round(services.reduce((acc, service) => acc + parseInt(service.responseTime), 0) / services.length) + 'ms'
-    : '0ms';
-
   return (
     <div className="p-8">
       <div className="flex justify-between items-center mb-8">
@@ -224,7 +239,7 @@ export default function DashboardPage() {
                       <span className="text-sm text-muted-foreground">{service.url}</span>
                     </div>
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      service.status === 'up' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                      service.status === 'good' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
                     }`}>
                       {service.status.toUpperCase()}
                     </span>
@@ -234,11 +249,11 @@ export default function DashboardPage() {
                   <div className="pt-4">
                     <h4 className="text-sm font-semibold mb-2">Last 30 Minutes Status</h4>
                     <div className="flex items-end gap-4 h-12 justify-start">
-                      {service.statusHistory.map((check, index) => (
+                      {service.uptimeTicks.map((status, index) => (
                         <StatusCandlestick
                           key={index}
-                          status={check.status}
-                          timestamp={check.timestamp}
+                          status={status}
+                          timestamp={index.toString()}
                         />
                       ))}
                     </div>

@@ -2,7 +2,9 @@ import express from "express";
 import { authMiddleware } from "./middleware";
 import { prismaClient } from "db/client";
 import cors from "cors";
+import dotenv from "dotenv";
 
+dotenv.config();
 
 const app = express();
 

@@ -11,10 +11,12 @@
   },
   "dependencies": {
     "@types/cors": "^2.8.17",
+    "@types/dotenv": "^8.2.3",
     "@types/express": "^5.0.1",
     "@types/jsonwebtoken": "^9.0.9",
     "cors": "^2.8.5",
     "db": "*",
+    "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2"
   }
